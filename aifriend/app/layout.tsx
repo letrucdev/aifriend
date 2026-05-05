@@ -15,10 +15,8 @@ const playpenSans = Playpen_Sans({
 const title = "Mây — AI bạn thân lắng nghe cậu 🌸"
 const description =
   "Một người bạn AI dễ thương, ngọt ngào, sẵn sàng lắng nghe và đồng hành cùng bạn trong những chuyện đời sống, cảm xúc thường ngày."
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://aifriend.app"
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
   title,
   description,
   manifest: "/site.webmanifest",
@@ -35,7 +33,6 @@ export const metadata: Metadata = {
     description,
     type: "website",
     locale: "vi_VN",
-    url: siteUrl,
     siteName: "Mây",
     images: [
       {
@@ -63,11 +60,7 @@ export default function RootLayout({
     <html
       lang="vi"
       suppressHydrationWarning
-      className={cn(
-        "antialiased",
-        playpenSans.variable,
-        "font-sans"
-      )}
+      className={cn("antialiased", playpenSans.variable, "font-sans")}
     >
       <body suppressHydrationWarning>
         <TooltipProvider delayDuration={150}>
