@@ -2,6 +2,7 @@ import { HarmBlockThreshold, HarmCategory } from "@google/genai"
 import { NextRequest, NextResponse } from "next/server"
 
 import { GEMINI_MODEL, genAI } from "@/lib/gemini"
+import { OPENAI_MODEL, openai } from "@/lib/openai"
 import { filterPrompt } from "@/lib/prompt-filter"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { SYSTEM_PROMPT } from "@/lib/system-prompt"
@@ -23,6 +24,62 @@ function getClientKey(req: NextRequest): string {
   return req.headers.get("x-real-ip") ?? "unknown"
 }
 
+function shouldFallbackToOpenAI(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false
+  const e = err as {
+    status?: number
+    statusCode?: number
+    code?: number | string
+    message?: string
+    cause?: { code?: string }
+  }
+
+  const status =
+    typeof e.status === "number"
+      ? e.status
+      : typeof e.statusCode === "number"
+        ? e.statusCode
+        : typeof e.code === "number"
+          ? e.code
+          : undefined
+  if (status === 429) return true
+  if (typeof status === "number" && status >= 500 && status < 600) return true
+
+  const msg = String(e.message ?? "").toUpperCase()
+  if (
+    msg.includes("RESOURCE_EXHAUSTED") ||
+    msg.includes("QUOTA") ||
+    msg.includes("RATE LIMIT") ||
+    msg.includes("429")
+  ) {
+    return true
+  }
+  if (
+    msg.includes("UNAVAILABLE") ||
+    msg.includes("INTERNAL") ||
+    msg.includes("DEADLINE_EXCEEDED") ||
+    msg.includes(" 500") ||
+    msg.includes(" 502") ||
+    msg.includes(" 503") ||
+    msg.includes(" 504")
+  ) {
+    return true
+  }
+
+  const netCode = typeof e.code === "string" ? e.code : e.cause?.code
+  if (
+    netCode === "ECONNRESET" ||
+    netCode === "ETIMEDOUT" ||
+    netCode === "ENOTFOUND" ||
+    netCode === "EAI_AGAIN" ||
+    netCode === "UND_ERR_SOCKET"
+  ) {
+    return true
+  }
+
+  return false
+}
+
 function streamFromText(text: string): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
   return new ReadableStream({
@@ -42,7 +99,7 @@ function streamFromText(text: string): ReadableStream<Uint8Array> {
 export async function POST(req: NextRequest) {
   const clientKey = getClientKey(req)
 
-  const limit = checkRateLimit(clientKey)
+  const limit = await checkRateLimit(clientKey)
   if (!limit.ok) {
     const message =
       limit.scope === "minute"
@@ -136,6 +193,9 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
     async start(controller) {
+      let yieldedAny = false
+
+      // 1. Try Gemini first.
       try {
         const response = await genAI.models.generateContentStream({
           model: GEMINI_MODEL,
@@ -165,15 +225,71 @@ export async function POST(req: NextRequest) {
             ],
           },
         })
-        let any = false
         for await (const chunk of response) {
           const text = chunk.text
           if (text) {
-            any = true
+            yieldedAny = true
             controller.enqueue(encoder.encode(text))
           }
         }
-        if (!any) {
+        if (yieldedAny) {
+          controller.close()
+          return
+        }
+        // Empty stream (e.g. blocked by safety) — not retried via OpenAI.
+        controller.enqueue(
+          encoder.encode(
+            "Mây hơi ngại nói chuyện này quá 🥺 Cậu kể cho mình nghe chuyện khác trong lòng cậu được không?"
+          )
+        )
+        controller.close()
+        return
+      } catch (err) {
+        console.error("[/api/chat] gemini error", err)
+
+        // Already streamed bytes — can't safely switch providers mid-flight.
+        if (yieldedAny) {
+          controller.close()
+          return
+        }
+
+        // Only fallback for quota / 5xx / network errors.
+        if (!shouldFallbackToOpenAI(err) || !openai) {
+          controller.enqueue(
+            encoder.encode(
+              "Có chuyện gì đó xảy ra với Mây rồi 🥺 Cậu thử nhắn lại sau một chút nha."
+            )
+          )
+          controller.close()
+          return
+        }
+      }
+
+      // 2. Fallback: OpenAI.
+      try {
+        console.warn("[/api/chat] falling back to OpenAI")
+        const oaiStream = await openai!.chat.completions.create({
+          model: OPENAI_MODEL,
+          stream: true,
+          temperature: 0.85,
+          top_p: 0.95,
+          max_tokens: 1024,
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            ...messages.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+          ],
+        })
+        for await (const chunk of oaiStream) {
+          const text = chunk.choices[0]?.delta?.content
+          if (text) {
+            yieldedAny = true
+            controller.enqueue(encoder.encode(text))
+          }
+        }
+        if (!yieldedAny) {
           controller.enqueue(
             encoder.encode(
               "Mây hơi ngại nói chuyện này quá 🥺 Cậu kể cho mình nghe chuyện khác trong lòng cậu được không?"
@@ -181,12 +297,14 @@ export async function POST(req: NextRequest) {
           )
         }
       } catch (err) {
-        console.error("[/api/chat] gemini error", err)
-        controller.enqueue(
-          encoder.encode(
-            "Có chuyện gì đó xảy ra với Mây rồi 🥺 Cậu thử nhắn lại sau một chút nha."
+        console.error("[/api/chat] openai fallback error", err)
+        if (!yieldedAny) {
+          controller.enqueue(
+            encoder.encode(
+              "Có chuyện gì đó xảy ra với Mây rồi 🥺 Cậu thử nhắn lại sau một chút nha."
+            )
           )
-        )
+        }
       } finally {
         controller.close()
       }

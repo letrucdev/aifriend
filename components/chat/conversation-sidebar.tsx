@@ -119,9 +119,9 @@ export function ConversationSidebar() {
             <div className="text-sm font-semibold tracking-[-0.02em]">
               Mây
             </div>
-            <MonoLabel className="text-muted-foreground">
+            <small className="text-muted-foreground">
               AI Bạn Thân
-            </MonoLabel>
+            </small>
           </div>
         </div>
         <Button

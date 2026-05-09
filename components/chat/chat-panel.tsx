@@ -7,11 +7,20 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { ChatInput } from "@/components/chat/chat-input"
 import { ChatMessage } from "@/components/chat/chat-message"
 import { EmptyState } from "@/components/chat/empty-state"
+import { RatingDialog } from "@/components/chat/rating-dialog"
 import { useChat } from "@/hooks/use-chat"
 import { useConversations } from "@/hooks/use-conversations"
 
 export function ChatPanel() {
-  const { messages, isStreaming, send, stop } = useChat()
+  const {
+    messages,
+    isStreaming,
+    send,
+    stop,
+    ratingPrompt,
+    closeRatingPrompt,
+    startNewConversation,
+  } = useChat()
   const { currentConversation } = useConversations()
   const scrollerRef = React.useRef<HTMLDivElement>(null)
 
@@ -58,6 +67,19 @@ export function ChatPanel() {
           <ChatInput onSend={send} onStop={stop} isStreaming={isStreaming} />
         </div>
       </div>
+
+      <RatingDialog
+        open={ratingPrompt !== null}
+        onOpenChange={(open) => {
+          if (!open) closeRatingPrompt()
+        }}
+        conversationId={ratingPrompt?.conversationId ?? null}
+        messageCount={ratingPrompt?.messageCount}
+        onStartNew={() => {
+          closeRatingPrompt()
+          startNewConversation()
+        }}
+      />
     </div>
   )
 }

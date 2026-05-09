@@ -1,67 +1,58 @@
+import { RateLimiterMemory, RateLimiterRes } from "rate-limiter-flexible"
+
 const PER_MINUTE = Number(process.env.RATE_LIMIT_PER_MINUTE ?? 10)
 const PER_DAY = Number(process.env.RATE_LIMIT_PER_DAY ?? 100)
 
-const MINUTE_MS = 60 * 1000
-const DAY_MS = 24 * 60 * 60 * 1000
-
-type Bucket = {
-  minute: number[]
-  day: number[]
-}
-
 declare global {
-  var __aifriend_rate_limit__: Map<string, Bucket> | undefined
-  var __aifriend_rate_limit_cleanup__: NodeJS.Timeout | undefined
+  var __aifriend_rate_limit_minute__: RateLimiterMemory | undefined
+  var __aifriend_rate_limit_day__: RateLimiterMemory | undefined
 }
 
-const store: Map<string, Bucket> =
-  globalThis.__aifriend_rate_limit__ ?? new Map()
-globalThis.__aifriend_rate_limit__ = store
+// Reuse limiters across HMR reloads in dev so counters don't reset on every edit.
+const minuteLimiter =
+  globalThis.__aifriend_rate_limit_minute__ ??
+  new RateLimiterMemory({
+    keyPrefix: "aifriend:min",
+    points: PER_MINUTE,
+    duration: 60,
+  })
+globalThis.__aifriend_rate_limit_minute__ = minuteLimiter
 
-if (!globalThis.__aifriend_rate_limit_cleanup__) {
-  globalThis.__aifriend_rate_limit_cleanup__ = setInterval(() => {
-    const now = Date.now()
-    for (const [key, bucket] of store) {
-      bucket.minute = bucket.minute.filter((t) => now - t < MINUTE_MS)
-      bucket.day = bucket.day.filter((t) => now - t < DAY_MS)
-      if (bucket.minute.length === 0 && bucket.day.length === 0) {
-        store.delete(key)
-      }
-    }
-  }, MINUTE_MS)
-  // Allow process to exit naturally in dev/test
-  globalThis.__aifriend_rate_limit_cleanup__.unref?.()
-}
+const dayLimiter =
+  globalThis.__aifriend_rate_limit_day__ ??
+  new RateLimiterMemory({
+    keyPrefix: "aifriend:day",
+    points: PER_DAY,
+    duration: 24 * 60 * 60,
+  })
+globalThis.__aifriend_rate_limit_day__ = dayLimiter
 
 export type RateLimitResult =
   | { ok: true }
   | { ok: false; retryAfter: number; scope: "minute" | "day" }
 
-export function checkRateLimit(key: string): RateLimitResult {
-  const now = Date.now()
-  const bucket = store.get(key) ?? { minute: [], day: [] }
-
-  bucket.minute = bucket.minute.filter((t) => now - t < MINUTE_MS)
-  bucket.day = bucket.day.filter((t) => now - t < DAY_MS)
-
-  if (bucket.day.length >= PER_DAY) {
-    const retryAfter = Math.ceil(
-      (DAY_MS - (now - bucket.day[0]!)) / 1000
-    )
-    store.set(key, bucket)
-    return { ok: false, retryAfter, scope: "day" }
+export async function checkRateLimit(key: string): Promise<RateLimitResult> {
+  try {
+    await minuteLimiter.consume(key)
+  } catch (rej) {
+    const res = rej as RateLimiterRes
+    return {
+      ok: false,
+      retryAfter: Math.ceil(res.msBeforeNext / 1000),
+      scope: "minute",
+    }
   }
 
-  if (bucket.minute.length >= PER_MINUTE) {
-    const retryAfter = Math.ceil(
-      (MINUTE_MS - (now - bucket.minute[0]!)) / 1000
-    )
-    store.set(key, bucket)
-    return { ok: false, retryAfter, scope: "minute" }
+  try {
+    await dayLimiter.consume(key)
+  } catch (rej) {
+    const res = rej as RateLimiterRes
+    return {
+      ok: false,
+      retryAfter: Math.ceil(res.msBeforeNext / 1000),
+      scope: "day",
+    }
   }
 
-  bucket.minute.push(now)
-  bucket.day.push(now)
-  store.set(key, bucket)
   return { ok: true }
 }

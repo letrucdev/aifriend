@@ -32,13 +32,13 @@ export function EmptyState({ onPick }: { onPick: (text: string) => void }) {
           className="h-44 w-auto object-cover sm:h-56"
         />
       </div>
-      <MonoLabel className="text-muted-foreground mb-3">
+      <p className="mb-3 text-muted-foreground">
         Mây · người bạn lắng nghe cậu
-      </MonoLabel>
+      </p>
       <h1 className="max-w-xl text-3xl font-medium tracking-[-0.03em] sm:text-4xl">
         Mình ở đây nè, kể mình nghe đi 🌷
       </h1>
-      <p className="text-muted-foreground mt-3 max-w-md text-[15px] leading-relaxed tracking-[-0.01em]">
+      <p className="mt-3 max-w-md text-[15px] leading-relaxed tracking-[-0.01em] text-muted-foreground">
         Mây không phải chuyên gia, mình chỉ là một người bạn nhỏ luôn sẵn sàng
         lắng nghe và đồng hành cùng cậu thôi 💛
       </p>
@@ -49,7 +49,7 @@ export function EmptyState({ onPick }: { onPick: (text: string) => void }) {
             key={s}
             type="button"
             onClick={() => onPick(s)}
-            className="border-border bg-card hover:bg-accent text-foreground rounded-xl border px-4 py-3 text-left text-[14px] leading-relaxed tracking-[-0.01em] transition"
+            className="rounded-xl border border-border bg-card px-4 py-3 text-left text-[14px] leading-relaxed tracking-[-0.01em] text-foreground transition hover:bg-accent"
           >
             {s}
           </button>

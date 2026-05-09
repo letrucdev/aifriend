@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Playpen_Sans } from "next/font/google"
+import { Geist_Mono, Playpen_Sans } from "next/font/google"
 
 import "./globals.css"
 import { Toaster } from "@/components/ui/sonner"
@@ -10,6 +10,12 @@ const playpenSans = Playpen_Sans({
   subsets: ["latin", "vietnamese"],
   weight: ["300", "400", "500", "700"],
   variable: "--font-sans",
+})
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono",
 })
 
 const title = "Mây — AI bạn thân lắng nghe cậu 🌸"
@@ -60,7 +66,12 @@ export default function RootLayout({
     <html
       lang="vi"
       suppressHydrationWarning
-      className={cn("antialiased", playpenSans.variable, "font-sans")}
+      className={cn(
+        "antialiased",
+        playpenSans.variable,
+        geistMono.variable,
+        "font-sans"
+      )}
     >
       <body suppressHydrationWarning>
         <TooltipProvider delayDuration={150}>

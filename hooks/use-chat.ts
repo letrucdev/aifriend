@@ -11,6 +11,11 @@ export type SendOptions = {
   ensureConversationId?: () => string
 }
 
+export type RatingPrompt = {
+  conversationId: string
+  messageCount: number
+}
+
 export function useChat() {
   const {
     currentId,
@@ -21,7 +26,13 @@ export function useChat() {
   } = useConversations()
 
   const [isStreaming, setIsStreaming] = React.useState(false)
+  const [ratingPrompt, setRatingPrompt] =
+    React.useState<RatingPrompt | null>(null)
   const abortRef = React.useRef<AbortController | null>(null)
+
+  const closeRatingPrompt = React.useCallback(() => {
+    setRatingPrompt(null)
+  }, [])
 
   const stop = React.useCallback(() => {
     abortRef.current?.abort()
@@ -71,14 +82,25 @@ export function useChat() {
 
         if (!response.ok) {
           let message = "Có chuyện gì đó xảy ra rồi 🥺 Cậu thử lại sau nha."
+          let errorCode: string | undefined
           try {
-            const data = (await response.json()) as { message?: string }
+            const data = (await response.json()) as {
+              message?: string
+              error?: string
+            }
             if (data.message) message = data.message
+            if (data.error) errorCode = data.error
           } catch {
             /* swallow */
           }
           updateMessage(conversationId, assistantId, message)
-          if (response.status === 429) {
+          if (errorCode === "too_many_messages") {
+            toast.warning(message)
+            setRatingPrompt({
+              conversationId,
+              messageCount: prior.length + 1,
+            })
+          } else if (response.status === 429) {
             toast.warning(message)
           } else {
             toast.error(message)
@@ -137,5 +159,8 @@ export function useChat() {
     send,
     stop,
     conversationId: currentId,
+    ratingPrompt,
+    closeRatingPrompt,
+    startNewConversation: createConversation,
   }
 }
