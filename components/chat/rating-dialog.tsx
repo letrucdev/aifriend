@@ -17,11 +17,14 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
+export type RatingDialogReason = "milestone" | "manual" | "limit"
+
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   conversationId?: string | null
   messageCount?: number
+  reason?: RatingDialogReason
   onStartNew?: () => void
 }
 
@@ -35,30 +38,54 @@ const STAR_LABELS: Record<number, string> = {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+const COPY: Record<
+  RatingDialogReason,
+  { title: string; description: string; dismissLabel: string }
+> = {
+  milestone: {
+    title: "Cậu thấy Mây thế nào? 🌷",
+    description:
+      "Cậu đã tâm sự với Mây được một lúc rồi. Cậu để lại vài dòng cho Mây cải thiện nha?",
+    dismissLabel: "Để sau",
+  },
+  manual: {
+    title: "Gửi feedback cho Mây 💌",
+    description:
+      "Cậu thấy Mây thế nào? Mây luôn muốn lắng nghe để dễ thương hơn với cậu.",
+    dismissLabel: "Đóng",
+  },
+  limit: {
+    title: "Cậu thấy Mây thế nào? 🌷",
+    description:
+      "Cuộc trò chuyện này hơi dài rồi, để Mây mở phiên mới nha. Cậu để lại vài dòng cho Mây cải thiện được không?",
+    dismissLabel: "Bỏ qua, mở phiên mới",
+  },
+}
+
 export function RatingDialog({
   open,
   onOpenChange,
   conversationId,
   messageCount,
+  reason = "milestone",
   onStartNew,
 }: Props) {
+  const copy = COPY[reason]
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Cậu thấy Mây thế nào? 🌷</DialogTitle>
-          <DialogDescription>
-            Cuộc trò chuyện này hơi dài rồi, để Mây mở phiên mới nha. Cậu để
-            lại vài dòng cho Mây cải thiện được không?
-          </DialogDescription>
+          <DialogTitle>{copy.title}</DialogTitle>
+          <DialogDescription>{copy.description}</DialogDescription>
         </DialogHeader>
         {open && (
           <RatingForm
             key={conversationId ?? "anon"}
             conversationId={conversationId ?? null}
             messageCount={messageCount}
+            dismissLabel={copy.dismissLabel}
             onClose={() => onOpenChange(false)}
-            onStartNew={onStartNew}
+            onStartNew={reason === "limit" ? onStartNew : undefined}
           />
         )}
       </DialogContent>
@@ -69,6 +96,7 @@ export function RatingDialog({
 type FormProps = {
   conversationId: string | null
   messageCount?: number
+  dismissLabel: string
   onClose: () => void
   onStartNew?: () => void
 }
@@ -76,6 +104,7 @@ type FormProps = {
 function RatingForm({
   conversationId,
   messageCount,
+  dismissLabel,
   onClose,
   onStartNew,
 }: FormProps) {
@@ -246,25 +275,14 @@ function RatingForm({
       </div>
 
       <DialogFooter>
-        {onStartNew ? (
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onStartNew()}
-            disabled={submitting}
-          >
-            Bỏ qua, mở phiên mới
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onClose}
-            disabled={submitting}
-          >
-            Để sau
-          </Button>
-        )}
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => (onStartNew ? onStartNew() : onClose())}
+          disabled={submitting}
+        >
+          {dismissLabel}
+        </Button>
         <Button type="submit" disabled={submitting || rating < 1}>
           {submitting ? "Đang gửi…" : "Gửi đánh giá"}
         </Button>

@@ -31,7 +31,7 @@ export function HeroSection() {
 
           <span
             aria-hidden
-            className="absolute top-6 left-6 inline-flex items-center gap-1.5 rounded-[4px] border border-white/40 bg-white/40 px-2 py-1 backdrop-blur-md"
+            className="absolute top-6 left-6 inline-flex items-center gap-1.5 rounded-lg border border-white/40 bg-white/40 px-2 py-1 backdrop-blur-md"
           >
             <span className="size-1.5 rounded-full bg-[#ef2cc1]" />
             <span className="font-mono text-[10px] font-medium tracking-[0.08em] text-black/70 uppercase">

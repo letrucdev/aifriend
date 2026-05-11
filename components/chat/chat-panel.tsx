@@ -1,11 +1,14 @@
 "use client"
 
 import * as React from "react"
+import { MessageSquareHeart } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { ChatInput } from "@/components/chat/chat-input"
 import { ChatMessage } from "@/components/chat/chat-message"
+import { ChatTour } from "@/components/chat/chat-tour"
 import { EmptyState } from "@/components/chat/empty-state"
 import { RatingDialog } from "@/components/chat/rating-dialog"
 import { useChat } from "@/hooks/use-chat"
@@ -19,6 +22,7 @@ export function ChatPanel() {
     stop,
     ratingPrompt,
     closeRatingPrompt,
+    openFeedback,
     startNewConversation,
   } = useChat()
   const { currentConversation } = useConversations()
@@ -35,11 +39,24 @@ export function ChatPanel() {
   return (
     <div className="flex h-svh min-h-0 flex-1 flex-col">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger />
+        <SidebarTrigger data-tour="sidebar-trigger" />
         <Separator orientation="vertical" className="h-full" />
         <div className="min-w-0 flex-1 truncate text-sm font-medium tracking-[-0.01em]">
           {currentConversation?.title ?? "Chào cậu 🌸"}
         </div>
+        <ChatTour isEmpty={isEmpty} />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={openFeedback}
+          data-tour="feedback"
+          className="text-muted-foreground hover:text-foreground -mr-1 shrink-0 gap-1.5"
+          aria-label="Gửi feedback cho Mây"
+        >
+          <MessageSquareHeart className="size-4" />
+          <span className="hidden sm:inline">Feedback</span>
+        </Button>
       </header>
 
       <div ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto">
@@ -63,7 +80,7 @@ export function ChatPanel() {
       </div>
 
       <div className="border-t bg-background/80 shrink-0 px-4 py-3 backdrop-blur sm:px-6">
-        <div className="mx-auto w-full max-w-3xl">
+        <div data-tour="chat-input" className="mx-auto w-full max-w-3xl">
           <ChatInput onSend={send} onStop={stop} isStreaming={isStreaming} />
         </div>
       </div>
@@ -75,6 +92,7 @@ export function ChatPanel() {
         }}
         conversationId={ratingPrompt?.conversationId ?? null}
         messageCount={ratingPrompt?.messageCount}
+        reason={ratingPrompt?.reason}
         onStartNew={() => {
           closeRatingPrompt()
           startNewConversation()

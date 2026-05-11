@@ -5,15 +5,30 @@ import { toast } from "sonner"
 
 import { useConversations, type ChatMessage } from "@/hooks/use-conversations"
 
-const MAX_HISTORY = 20
+const MAX_HISTORY = 19
+const FEEDBACK_MILESTONE = 10
+const FEEDBACK_SHOWN_KEY = "aifriend:feedback-shown:v1"
 
 export type SendOptions = {
   ensureConversationId?: () => string
 }
 
+export type RatingPromptReason = "milestone" | "manual" | "limit"
+
 export type RatingPrompt = {
-  conversationId: string
+  conversationId: string | null
   messageCount: number
+  reason: RatingPromptReason
+}
+
+function hasShownAutoFeedback(): boolean {
+  if (typeof window === "undefined") return false
+  return window.localStorage.getItem(FEEDBACK_SHOWN_KEY) === "1"
+}
+
+function markAutoFeedbackShown() {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(FEEDBACK_SHOWN_KEY, "1")
 }
 
 export function useChat() {
@@ -33,6 +48,17 @@ export function useChat() {
   const closeRatingPrompt = React.useCallback(() => {
     setRatingPrompt(null)
   }, [])
+
+  const messages: ChatMessage[] = currentConversation?.messages ?? []
+  const messageCount = messages.length
+
+  const openFeedback = React.useCallback(() => {
+    setRatingPrompt({
+      conversationId: currentId ?? null,
+      messageCount,
+      reason: "manual",
+    })
+  }, [currentId, messageCount])
 
   const stop = React.useCallback(() => {
     abortRef.current?.abort()
@@ -82,25 +108,17 @@ export function useChat() {
 
         if (!response.ok) {
           let message = "Có chuyện gì đó xảy ra rồi 🥺 Cậu thử lại sau nha."
-          let errorCode: string | undefined
           try {
             const data = (await response.json()) as {
               message?: string
               error?: string
             }
             if (data.message) message = data.message
-            if (data.error) errorCode = data.error
           } catch {
             /* swallow */
           }
           updateMessage(conversationId, assistantId, message)
-          if (errorCode === "too_many_messages") {
-            toast.warning(message)
-            setRatingPrompt({
-              conversationId,
-              messageCount: prior.length + 1,
-            })
-          } else if (response.status === 429) {
+          if (response.status === 429) {
             toast.warning(message)
           } else {
             toast.error(message)
@@ -124,6 +142,18 @@ export function useChat() {
         }
         acc += decoder.decode()
         updateMessage(conversationId, assistantId, acc)
+
+        // After a successful exchange, check if we've crossed the feedback
+        // milestone. Trigger the dialog once per device.
+        const newCount = prior.length + 2
+        if (newCount >= FEEDBACK_MILESTONE && !hasShownAutoFeedback()) {
+          markAutoFeedbackShown()
+          setRatingPrompt({
+            conversationId,
+            messageCount: newCount,
+            reason: "milestone",
+          })
+        }
       } catch (err) {
         if ((err as Error).name === "AbortError") {
           // Keep what was streamed so far; no toast.
@@ -151,8 +181,6 @@ export function useChat() {
     ]
   )
 
-  const messages: ChatMessage[] = currentConversation?.messages ?? []
-
   return {
     messages,
     isStreaming,
@@ -161,6 +189,7 @@ export function useChat() {
     conversationId: currentId,
     ratingPrompt,
     closeRatingPrompt,
+    openFeedback,
     startNewConversation: createConversation,
   }
 }

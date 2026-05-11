@@ -1,5 +1,3 @@
-import { MonoLabel } from "@/components/chat/mono-label"
-
 export function MaySection() {
   return (
     <section
@@ -32,7 +30,7 @@ export function MaySection() {
 
           <div className="mt-8 inline-flex items-center gap-2 rounded-lg border border-black/8 bg-white/80 px-3 py-1.5 backdrop-blur-sm">
             <span className="size-1.5 rounded-full bg-[#ef2cc1]" />
-            <span className="font-mono text-[10px] font-medium tracking-[0.08em] text-black/70 uppercase">
+            <span className="text-[10px] font-medium tracking-[0.08em] text-black/70 uppercase">
               v0.1 · luôn lắng nghe
             </span>
           </div>
